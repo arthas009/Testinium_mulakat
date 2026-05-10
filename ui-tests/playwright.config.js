@@ -1,6 +1,13 @@
 // @ts-check
 const { defineConfig, devices } = require('@playwright/test');
 
+/** Folder name for this test run: e.g. "2026-05-10_18-35-17" */
+const runTimestamp = new Date()
+  .toISOString()
+  .slice(0, 19)       // "2026-05-10T18:35:17"
+  .replace('T', '_')  // "2026-05-10_18:35:17"
+  .replaceAll(':', '-'); // "2026-05-10_18-35-17"
+
 module.exports = defineConfig({
   testDir: './specs',
   timeout: 90000,
@@ -35,5 +42,5 @@ module.exports = defineConfig({
     },
   ],
 
-  outputDir: './test-results/',
+  outputDir: `./test-results/${runTimestamp}`,
 });
