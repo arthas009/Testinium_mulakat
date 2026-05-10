@@ -4,7 +4,7 @@
 **Language:** JavaScript (Node.js)  
 **Framework:** Playwright (`@playwright/test`)  
 **Pattern:** Page Object Model (POM)  
-**Principles:** SOLID, DRY, Single Source of Truth  
+**Principles:** SOLID, DRY, Environment-driven Configuration  
 
 ---
 
@@ -20,7 +20,7 @@
    - [helpers/](#53-helpers)
    - [pages/](#54-pages)
    - [services/](#55-services)
-   - [tests/](#56-tests)
+   - [specs/](#56-specs)
 6. [Configuration](#6-configuration)
 7. [Test Scenarios](#7-test-scenarios)
    - [UI — Grimelange](#71-ui--grimelange)
@@ -34,16 +34,18 @@
 
 ## 1. Project Overview
 
-This project is a fully automated test suite built with **Playwright** in **JavaScript**. It covers two separate test domains:
+This project is a fully automated test suite built with **Playwright** in **JavaScript**. It is structured as **two completely independent sub-projects**, each with its own dependencies, configuration, and environment variables:
 
-| Domain | Target | Type |
-|--------|--------|------|
-| UI     | [grimelange.com.tr](https://www.grimelange.com.tr) | End-to-end browser test |
-| API    | [gorest.co.in](https://gorest.co.in) | REST API service test |
+| Sub-project | Domain | Target | Type |
+|-------------|--------|--------|------|
+| `api-tests/` | API | [gorest.co.in](https://gorest.co.in) | REST API service test |
+| `ui-tests/`  | UI  | [grimelange.com.tr](https://www.grimelange.com.tr) | End-to-end browser test |
 
 Key characteristics:
+- **Fully independent projects** — each sub-project has its own `package.json`, `.env`, `playwright.config.js`, and `node_modules`
 - **Page Object Model** — each page/component is encapsulated in its own class
-- **Central selector registry** — all CSS selectors live in a single file
+- **Co-located locator files** — each page class has a paired `*Locators.js` file in the same folder
+- **Environment-driven config** — all URLs, timeouts, and tokens are read from `.env`; nothing is hardcoded
 - **SOLID design** — classes have one job and depend on abstractions, not concretions
 - **Video recording** — every test run is recorded for visual evidence
 - **Yellow element highlighting** — every interacted element is highlighted visually
@@ -58,41 +60,54 @@ Key characteristics:
 ```
 Testinium/
 │
-├── .env                          # Environment variables (token, secrets)
-├── playwright.config.js          # Playwright global configuration
-├── package.json                  # npm scripts and dependencies
+├── .env                              # Root env template (all variables)
+├── .gitignore
 │
-├── config/
-│   └── config.js                 # Centralised app config (URLs, timeouts, token)
+├── docs/
+│   ├── TECHNICAL_DOCUMENT_EN.md     # This document
+│   └── TECHNICAL_DOCUMENT_TR.md     # Turkish version
 │
-├── constants/
-│   ├── locators.js               # All CSS/text selectors (single source of truth)
-│   └── urls.js                   # All page URLs derived from config
+├── api-tests/                        # ── Fully independent API project ──
+│   ├── .env                          # GOREST_TOKEN, API_BASE_URL
+│   ├── package.json
+│   ├── package-lock.json
+│   ├── playwright.config.js
+│   ├── config/
+│   │   └── config.js                 # Reads all values from process.env
+│   ├── helpers/
+│   │   └── logger.js                 # Structured console logger
+│   ├── services/
+│   │   └── UserService.js            # GoREST /users CRUD service layer
+│   └── specs/
+│       └── gorest.spec.js            # API test spec (6 tests)
 │
-├── helpers/
-│   ├── highlight.js              # Yellow element highlighter
-│   ├── logger.js                 # Structured console logger
-│   └── priceUtils.js             # Turkish price string parser & comparator
-│
-├── pages/
-│   ├── base/
-│   │   └── BasePage.js           # Abstract base class for all page objects
-│   ├── HomePage.js               # Grimelange homepage (nav, popup)
-│   ├── ProductListPage.js        # Product listing page (sort, filter, select)
-│   └── ProductDetailPage.js      # Product detail page (color, size, cart)
-│
-├── services/
-│   └── UserService.js            # GoREST /users CRUD service layer
-│
-├── tests/
-│   ├── ui/
-│   │   └── grimelange.spec.js    # UI test spec (16 steps)
-│   └── api/
-│       └── gorest.spec.js        # API test spec (6 tests)
-│
-└── docs/
-    ├── TECHNICAL_DOCUMENT_EN.md  # This document
-    └── TECHNICAL_DOCUMENT_TR.md  # Turkish version
+└── ui-tests/                         # ── Fully independent UI project ──
+    ├── .env                          # UI_BASE_URL, TIMEOUT_*
+    ├── package.json
+    ├── package-lock.json
+    ├── playwright.config.js
+    ├── config/
+    │   └── config.js                 # Reads all values from process.env
+    ├── constants/
+    │   └── urls.js                   # Page URLs derived from config
+    ├── helpers/
+    │   ├── highlight.js              # Yellow element highlighter
+    │   ├── logger.js                 # Structured console logger
+    │   └── priceUtils.js             # Turkish price parser & comparator
+    ├── pages/
+    │   ├── base/
+    │   │   └── BasePage.js           # Abstract base class for all page objects
+    │   ├── home/
+    │   │   ├── HomePage.js           # Grimelange homepage (nav, popup)
+    │   │   └── HomePageLocators.js   # All selectors for HomePage
+    │   ├── productList/
+    │   │   ├── ProductListPage.js    # Listing page (sort, filter, select)
+    │   │   └── ProductListPageLocators.js
+    │   └── productDetail/
+    │       ├── ProductDetailPage.js  # Detail page (color, size, cart)
+    │       └── ProductDetailPageLocators.js
+    └── specs/
+        └── grimelange.spec.js        # UI test spec (14 steps)
 ```
 
 ---
@@ -122,7 +137,7 @@ Test Spec  →  Page Object  →  BasePage utilities  →  Playwright API
 
 | Principle | Application in this project |
 |-----------|---------------------------|
-| **S**ingle Responsibility | Each class/file does exactly one thing: `locators.js` = selectors, `Logger` = logging, `priceUtils.js` = math, `UserService` = API calls |
+| **S**ingle Responsibility | Each class/file does exactly one thing: `*Locators.js` = selectors, `Logger` = logging, `priceUtils.js` = math, `UserService` = API calls |
 | **O**pen / Closed | `BasePage` is open for extension (subclass it), closed for modification (never edit it for new pages) |
 | **L**iskov Substitution | `HomePage`, `ProductListPage`, `ProductDetailPage` can all replace `BasePage` where only the base interface is used |
 | **I**nterface Segregation | No page object carries methods it doesn't own — cart operations are only in `ProductDetailPage` |
@@ -130,14 +145,19 @@ Test Spec  →  Page Object  →  BasePage utilities  →  Playwright API
 
 ### DRY (Don't Repeat Yourself)
 
-- Selectors written **once** in `constants/locators.js`
-- Base URL written **once** in `config/config.js`
+- Selectors written **once** in each page's co-located `*Locators.js` file
+- Base URL written **once** in `.env` and read via `Config`
+- Timeouts written **once** in `.env` and read via `Config.timeouts`
 - Price parsing written **once** in `helpers/priceUtils.js`
 - Common browser utilities written **once** in `pages/base/BasePage.js`
 
 ### Immutability
 
-`Object.freeze()` is applied to `Config`, `Locators`, `URLs`, and `Logger` to prevent accidental mutation at runtime.
+`Object.freeze()` is applied to `Config`, `URLs`, and `Logger` to prevent accidental mutation at runtime.
+
+### Environment-driven Configuration
+
+All runtime values (base URLs, timeouts, API tokens) live exclusively in `.env` files. `config.js` in each project reads from `process.env` and exposes a frozen `Config` object. No values are hardcoded in source files.
 
 ---
 
@@ -147,45 +167,54 @@ Test Spec  →  Page Object  →  BasePage utilities  →  Playwright API
 
 **`config.js`**
 
-The single source of truth for all runtime configuration values. Loaded once; accessed everywhere via `require`.
+Present in both `api-tests/` and `ui-tests/`. Calls `require('dotenv').config()` to load the local `.env`, then exposes a frozen `Config` object. No values are hardcoded.
 
+**`ui-tests/config/config.js`:**
 ```js
 const Config = Object.freeze({
-  ui:       { baseUrl: 'https://www.grimelange.com.tr' },
-  api:      { baseUrl: 'https://gorest.co.in/public/v2', token: process.env.GOREST_TOKEN },
-  timeouts: { short: 5_000, medium: 15_000, long: 30_000, highlight: 400 },
+  ui:       { baseUrl: process.env.UI_BASE_URL },
+  timeouts: {
+    short:     Number(process.env.TIMEOUT_SHORT),
+    medium:    Number(process.env.TIMEOUT_MEDIUM),
+    long:      Number(process.env.TIMEOUT_LONG),
+    highlight: Number(process.env.TIMEOUT_HIGHLIGHT),
+  },
 });
 ```
 
-**Rule:** Never hard-code a URL or timeout in a page object or test spec. Always read from `Config`.
+**`api-tests/config/config.js`:**
+```js
+const Config = Object.freeze({
+  api: {
+    baseUrl: process.env.API_BASE_URL,
+    token:   process.env.GOREST_TOKEN,
+  },
+});
+```
+
+**Rule:** Never hard-code a URL, timeout, or token in a page object or test spec. Always read from `Config`.
 
 ---
 
-### 5.2 `constants/`
-
-**`locators.js`**
-
-A frozen, nested object holding every CSS selector used in the project, grouped by page/component. When the target website changes its DOM, only this file needs to be updated.
-
-Each selector group uses an **array of fallback strings joined with `, `**, so Playwright matches whichever variant is present on the page:
-
-```js
-SORT_BUTTON: [
-  'button:has-text("Sıralama")',
-  'a:has-text("Sıralama")',
-  'span:has-text("Sıralama")',
-].join(', '),
-```
+### 5.2 `constants/` *(ui-tests only)*
 
 **`urls.js`**
 
 URL constants derived from `Config.ui.baseUrl`. Prevents hard-coded strings in page objects.
 
+```js
+const URLs = Object.freeze({
+  HOME:           Config.ui.baseUrl,
+  ERKEK_GIYIM:   `${Config.ui.baseUrl}/erkek-giyim`,
+  ERKEK_PANTOLON:`${Config.ui.baseUrl}/erkek-pantolon`,
+});
+```
+
 ---
 
 ### 5.3 `helpers/`
 
-**`highlight.js`**
+**`highlight.js`** *(ui-tests only)*
 
 Applies a yellow outline and semi-transparent background to any Playwright `Locator` before an interaction. Non-destructive — errors are silently swallowed so a missing element never fails the test due to highlighting.
 
@@ -194,7 +223,7 @@ outline: 3px solid yellow
 background: rgba(255, 255, 0, 0.35)
 ```
 
-**`logger.js`**
+**`logger.js`** *(both projects)*
 
 A frozen singleton object providing timestamped, levelled console output:
 
@@ -205,7 +234,7 @@ A frozen singleton object providing timestamped, levelled console output:
 | `Logger.warn(msg)` | `[WARN ]` | Non-critical issues (e.g. no color options) |
 | `Logger.error(msg)` | `[ERROR]` | Error conditions |
 
-**`priceUtils.js`**
+**`priceUtils.js`** *(ui-tests only)*
 
 Handles Turkish locale number formatting:
 
@@ -216,7 +245,39 @@ Handles Turkish locale number formatting:
 
 ---
 
-### 5.4 `pages/`
+### 5.4 `pages/` *(ui-tests only)*
+
+Each page is a **duo**: one class file and one co-located locator file in the same sub-folder. This keeps selectors physically next to the logic that uses them.
+
+```
+pages/
+├── home/
+│   ├── HomePage.js            ← behavior
+│   └── HomePageLocators.js    ← selectors
+├── productList/
+│   ├── ProductListPage.js
+│   └── ProductListPageLocators.js
+└── productDetail/
+    ├── ProductDetailPage.js
+    └── ProductDetailPageLocators.js
+```
+
+**`*Locators.js` files**
+
+Each locator file is a frozen object holding all CSS selectors for its page, grouped by element. Each selector uses an **array of fallback strings joined with `, `**, so Playwright matches whichever variant is present on the page:
+
+```js
+PRODUCT_CARDS: [
+  '.productItem.eachNot',
+  '.productItem:not(.productItemVariantDetail)',
+  '.productItem',
+  '.listing-product',
+].join(', '),
+```
+
+When the target website changes its DOM, only the relevant `*Locators.js` file needs to be updated.
+
+---
 
 **`BasePage.js`** — Abstract base class
 
@@ -226,9 +287,8 @@ Provides all shared browser interaction utilities. All concrete page objects ext
 |--------|-------------|
 | `goto(url)` | Navigate to URL, wait for DOMContentLoaded |
 | `waitForDOMLoad()` | Wait for DOMContentLoaded |
-| `waitForNetworkIdle()` | Wait for network idle |
+| `waitForNetworkIdle()` | Wait for load state |
 | `waitForVisible(selector, timeout)` | Wait for a selector to be visible |
-| `pause(ms)` | Wait a fixed number of milliseconds |
 | `getLocator(selector)` | Returns `.first()` locator |
 | `getLocatorAll(selector)` | Returns all matching locators |
 | `highlightAndClick(locator)` | Highlight yellow → click |
@@ -244,19 +304,14 @@ Provides all shared browser interaction utilities. All concrete page objects ext
 |----------------|----------|
 | Load homepage | `goto()` |
 | Dismiss cookie/newsletter popup | `closePopup()` |
-| Navigate to Erkek Pantolon (3-strategy fallback) | `navigateToErkekPantolon()` |
+| Navigate to Erkek Pantolon (2-strategy fallback) | `navigateToErkekPantolon()` |
 
 > **`navigateToErkekPantolon()` — Resilience Strategy**
 >
-> The method attempts three approaches in order, stopping as soon as one successfully lands on the Pantolon page:
->
 > | Priority | Strategy | Trigger |
 > |----------|----------|---------|
-> | 1 | Hover ERKEK trigger → wait for mega-menu → click Pantolon sub-link | Standard hover-based menu |
-> | 2 | Click ERKEK trigger → navigate to `/erkek-giyim` → click Pantolon link on the landing page | Click-based or non-hover menu |
-> | 3 | Navigate directly to `/erkek-pantolon` URL | Guaranteed fallback regardless of menu behaviour |
->
-> Each failed strategy logs a `[WARN]` with the reason and continues. The test only fails if all three strategies are exhausted.
+> | 1 | Click ERKEK nav link → land on `/erkek-giyim` → click Pantolon link on the page | Standard navigation |
+> | 2 | Navigate directly to `/erkek-pantolon` URL | Guaranteed fallback regardless of menu behaviour |
 
 ---
 
@@ -288,7 +343,7 @@ Provides all shared browser interaction utilities. All concrete page objects ext
 
 ---
 
-### 5.5 `services/`
+### 5.5 `services/` *(api-tests only)*
 
 **`UserService.js`**
 
@@ -306,16 +361,16 @@ All methods return the raw `APIResponse` — assertions remain in the test spec 
 
 ---
 
-### 5.6 `tests/`
+### 5.6 `specs/`
 
 Test files contain **only** test logic: step ordering, data preparation, and assertions. They do not contain selectors, URLs, or HTTP headers.
 
-**`tests/ui/grimelange.spec.js`** — 1 test, 16 steps  
-**`tests/api/gorest.spec.js`** — 6 sequential tests sharing state via `process.env`
+**`api-tests/specs/gorest.spec.js`** — 6 sequential tests sharing state via `process.env`  
+**`ui-tests/specs/grimelange.spec.js`** — 1 test with 14 named `test.step()` blocks
 
 #### Step isolation with `test.step()`
 
-Every UI step is wrapped in a named `test.step()` block. This produces an individual entry in the HTML report for each step, making it easy to identify exactly which step failed without reading the full log.
+Every UI step is wrapped in a named `test.step()` block. This produces an individual entry in the HTML report for each step, making it easy to identify exactly which step failed.
 
 ```js
 await test.step('3 - ERKEK menüsü → Pantolon', async () => {
@@ -330,22 +385,33 @@ await test.step('3 - ERKEK menüsü → Pantolon', async () => {
 | **Hard** (blocking) | `expect(...)` | Stops the current test immediately |
 | **Soft** (non-blocking) | `expect.soft(...)` | Records the failure and continues to the next step |
 
-Steps that use **soft** assertions (informational verifications — run continues):
+Steps that use **soft** assertions (informational — run continues):
 - Step 4: URL / heading check after navigation
 - Step 6: Sort label verification
-- Step 8: Filter page verification
-- Step 13: Popup price vs. product price comparison
-- Step 15: Total price increase check
+- Step 11: Popup price vs. product price comparison
+- Step 13: Total price increase check
 
-Steps that use **hard** assertions (blocking — run stops on failure):
-- Step 14: Quantity increment (prerequisite for step 15)
-- Step 16: Empty cart confirmation (final state verification)
+Steps that use **hard** assertions (blocking):
+- Step 12: Quantity increment (prerequisite for step 13)
+- Step 14: Empty cart confirmation (final state verification)
 
 ---
 
 ## 6. Configuration
 
-**`playwright.config.js`**
+Each sub-project has its own `playwright.config.js` and `.env`.
+
+**`api-tests/playwright.config.js`**
+
+| Option | Value | Reason |
+|--------|-------|--------|
+| `testDir` | `'./specs'` | Specs live inside the project folder |
+| `retries` | `1` | Absorbs transient network issues |
+| `workers` | `1` | Sequential (tests share process.env state) |
+| `outputDir` | `'./test-results/'` | Local to the project |
+| HTML report | `'./playwright-report'` | Local to the project |
+
+**`ui-tests/playwright.config.js`**
 
 | Option | Value | Reason |
 |--------|-------|--------|
@@ -353,13 +419,15 @@ Steps that use **hard** assertions (blocking — run stops on failure):
 | `video` | `'on'` | Full video recorded for every test |
 | `screenshot` | `'on'` | Screenshots captured on each action |
 | `trace` | `'on'` | Full Playwright trace for debugging |
-| `retries` | `1` | Each failed test is automatically retried once before being marked failed; absorbs transient timing/network issues |
-| `workers` | `1` | Sequential execution (tests share process.env state) |
-| `locale` | `'tr-TR'` | Turkish locale for correct date/number formatting |
+| `retries` | `1` | Absorbs transient timing/network issues |
+| `workers` | `1` | Sequential execution |
+| `locale` | `'tr-TR'` | Turkish locale for correct number formatting |
 | `viewport` | `1440×900` | Desktop resolution |
 | `timeout` | `90 000 ms` | Per-test timeout |
 | `actionTimeout` | `20 000 ms` | Per-action timeout |
 | `navigationTimeout` | `30 000 ms` | Per-navigation timeout |
+| `outputDir` | `'./test-results/'` | Local to the project |
+| HTML report | `'./playwright-report'` | Local to the project |
 
 ---
 
@@ -367,32 +435,31 @@ Steps that use **hard** assertions (blocking — run stops on failure):
 
 ### 7.1 UI — Grimelange
 
-**File:** `tests/ui/grimelange.spec.js`
+**File:** `ui-tests/specs/grimelange.spec.js`
 
 | Step | Action | Assertion | Type |
 |------|--------|-----------|------|
 | 1 | Navigate to `grimelange.com.tr` | — | — |
 | 2 | Close cookie popup | — | — |
-| 3 | Navigate to Erkek Pantolon (hover → click → direct URL) | — | — |
+| 3 | Navigate to Erkek Pantolon (click nav → direct URL fallback) | — | — |
 | 4 | — | URL / heading contains "pantolon" | Soft |
 | 5 | Select sort: "Fiyata göre(artan)" | — | — |
 | 6 | — | Sort label contains "artan" | Soft |
-| 7 | Click filter → select "Kargo" | — | — |
-| 8 | — | URL or heading contains "kargo" | Soft |
-| 9 | Click a random product card | — | — |
-| 10 | Select a random color swatch | — | — |
-| 11 | Select a random available size | — | — |
-| 12 | Click "Sepete Ekle" | Cart popup appears | Hard |
-| 13 | — | Popup price ≈ product page price (±1%) | Soft |
-| 14 | Click "+" to increase quantity | Quantity value incremented by 1 | Hard |
-| 15 | — | Total price is higher than single-item price | Soft |
-| 16 | Click remove button | Cart shows empty state | Hard |
+| 7 | Click a random product card | — | — |
+| 8 | Select a random color swatch | — | — |
+| 9 | Select a random available size | — | — |
+| — | Read product price from detail page | — | — |
+| 10 | Click "Sepete Ekle" | Cart popup appears | Hard |
+| 11 | — | Popup price ≈ product page price (±1%) | Soft |
+| 12 | Click "+" to increase quantity | Quantity value incremented by 1 | Hard |
+| 13 | — | Total price is higher than before quantity increase | Soft |
+| 14 | Click remove button | Cart shows empty state | Hard |
 
 ---
 
 ### 7.2 API — GoREST
 
-**File:** `tests/api/gorest.spec.js`  
+**File:** `api-tests/specs/gorest.spec.js`  
 **Base URL:** `https://gorest.co.in/public/v2`
 
 | Test | Method | Endpoint | Assertion |
@@ -408,42 +475,52 @@ Steps that use **hard** assertions (blocking — run stops on failure):
 
 ## 8. Running the Tests
 
+Each project is run independently from its own folder:
+
 ```bash
-# Install dependencies (first time only)
+# ── API Tests ──
+cd api-tests
 npm install
-npx playwright install chromium
+npx playwright install   # first time only
+npm test                 # run all API tests
+npm run report           # open HTML report
 
-# Run all tests
-npm test
+# ── UI Tests ──
+cd ui-tests
+npm install
+npx playwright install chromium   # first time only
+npm test                          # run UI test
+npm run test:headed               # run with visible browser
+npm run report                    # open HTML report
+```
 
-# Run UI tests only
-npm run test:ui
+Alternatively, from the project root using the root scripts:
 
-# Run API tests only
+```bash
 npm run test:api
-
-# Run with visible browser (headed)
-npm run test:headed
-
-# Open the HTML report after a run
-npm run report
+npm run test:ui
+npm run test:ui:headed
+npm run report:api
+npm run report:ui
 ```
 
 ---
 
 ## 9. Reports & Artifacts
 
-All artifacts are written to the `test-results/` directory automatically.
+Artifacts are written inside each project's own folder:
 
 | Artifact | Location | Description |
 |----------|----------|-------------|
-| HTML Report | `playwright-report/index.html` | Interactive test report |
-| Video | `test-results/**/*.webm` | Full screen recording per test |
-| Screenshot | `test-results/**/*.png` | Per-action screenshots |
-| Trace | `test-results/**/*.zip` | Playwright trace viewer archive |
+| HTML Report (API) | `api-tests/playwright-report/index.html` | Interactive API test report |
+| HTML Report (UI) | `ui-tests/playwright-report/index.html` | Interactive UI test report |
+| Video | `ui-tests/test-results/**/*.webm` | Full screen recording per test |
+| Screenshot | `ui-tests/test-results/**/*.png` | Per-action screenshots |
+| Trace | `ui-tests/test-results/**/*.zip` | Playwright trace viewer archive |
 
 Open the trace with:
 ```bash
+cd ui-tests
 npx playwright show-trace test-results/<test-folder>/trace.zip
 ```
 
@@ -451,41 +528,54 @@ npx playwright show-trace test-results/<test-folder>/trace.zip
 
 ## 10. Environment Setup
 
-Create a `.env` file in the project root:
+Each sub-project has its own `.env` file. Create them before running:
 
+**`api-tests/.env`**
 ```
 # GoREST API Bearer token
 # Get yours at: https://gorest.co.in/my-account/access-tokens
 GOREST_TOKEN=your_token_here
+API_BASE_URL=https://gorest.co.in/public/v2
 ```
 
-> **Security note:** Never commit `.env` to version control. Add it to `.gitignore`.
+**`ui-tests/.env`**
+```
+UI_BASE_URL=https://www.grimelange.com.tr
+TIMEOUT_SHORT=5000
+TIMEOUT_MEDIUM=15000
+TIMEOUT_LONG=30000
+TIMEOUT_HIGHLIGHT=400
+```
+
+> **Security note:** Never commit `.env` files to version control. They are listed in `.gitignore`.
 
 ---
 
 ## 11. Dependency Graph
 
 ```
-playwright.config.js
-│
-├── tests/ui/grimelange.spec.js
-│   ├── pages/HomePage.js
-│   │   ├── pages/base/BasePage.js
-│   │   │   ├── helpers/highlight.js  ←── config/config.js
-│   │   │   ├── helpers/logger.js
-│   │   │   └── config/config.js
-│   │   └── constants/locators.js
-│   │       constants/urls.js  ←── config/config.js
-│   ├── pages/ProductListPage.js     (same base chain)
-│   ├── pages/ProductDetailPage.js   (same base chain)
-│   ├── helpers/priceUtils.js
-│   └── helpers/logger.js
-│
-└── tests/api/gorest.spec.js
-    ├── services/UserService.js
-    │   ├── config/config.js
-    │   └── helpers/logger.js
-    └── helpers/logger.js
+api-tests/
+└── playwright.config.js
+    └── specs/gorest.spec.js
+        ├── services/UserService.js
+        │   ├── config/config.js  ←── .env (GOREST_TOKEN, API_BASE_URL)
+        │   └── helpers/logger.js
+        └── helpers/logger.js
+
+ui-tests/
+└── playwright.config.js
+    └── specs/grimelange.spec.js
+        ├── pages/home/HomePage.js
+        │   ├── pages/base/BasePage.js
+        │   │   ├── helpers/highlight.js
+        │   │   ├── helpers/logger.js
+        │   │   └── config/config.js  ←── .env (UI_BASE_URL, TIMEOUT_*)
+        │   ├── pages/home/HomePageLocators.js
+        │   └── constants/urls.js  ←── config/config.js
+        ├── pages/productList/ProductListPage.js     (same base chain)
+        ├── pages/productDetail/ProductDetailPage.js (same base chain)
+        ├── helpers/priceUtils.js
+        └── helpers/logger.js
 ```
 
-Every leaf node ultimately depends on `config/config.js` as the single source of truth.
+All values ultimately originate from the project's `.env` file via `config/config.js`.

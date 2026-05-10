@@ -1,10 +1,10 @@
-# Playwright JavaScript Test Otomasyon Çatısı — Teknik Belge
+﻿# Playwright JavaScript Test Otomasyon Çatısı — Teknik Belge
 
 **Proje:** Grimelange UI + GoREST API Test Paketi  
 **Dil:** JavaScript (Node.js)  
 **Çatı:** Playwright (`@playwright/test`)  
 **Desen:** Page Object Model (POM)  
-**Prensipler:** SOLID, DRY, Tek Kaynak İlkesi  
+**Prensipler:** SOLID, DRY, Ortam Değişkeni Tabanlı Yapılandırma  
 
 ---
 
@@ -20,7 +20,7 @@
    - [helpers/](#53-helpers)
    - [pages/](#54-pages)
    - [services/](#55-services)
-   - [tests/](#56-tests)
+   - [specs/](#56-specs)
 6. [Yapılandırma](#6-yapılandırma)
 7. [Test Senaryoları](#7-test-senaryoları)
    - [UI — Grimelange](#71-ui--grimelange)
@@ -58,41 +58,54 @@ Temel özellikler:
 ```
 Testinium/
 │
-├── .env                          # Ortam değişkenleri (token, gizli anahtarlar)
-├── playwright.config.js          # Playwright global yapılandırması
-├── package.json                  # npm komutları ve bağımlılıklar
+├── .env                              # Kök şablon (tüm değişkenler)
+├── .gitignore
 │
-├── config/
-│   └── config.js                 # Merkezi uygulama yapılandırması (URL'ler, zaman aşımları, token)
+├── docs/
+│   ├── TECHNICAL_DOCUMENT_EN.md     # İngilizce teknik belge
+│   └── TECHNICAL_DOCUMENT_TR.md     # Bu belge
 │
-├── constants/
-│   ├── locators.js               # Tüm CSS/metin seçiciler (tek kaynak)
-│   └── urls.js                   # Yapılandırmadan türetilen tüm sayfa URL'leri
+├── api-tests/                        # ── Tamamen bağımsız API projesi ──
+│   ├── .env                          # GOREST_TOKEN, API_BASE_URL
+│   ├── package.json
+│   ├── package-lock.json
+│   ├── playwright.config.js
+│   ├── config/
+│   │   └── config.js                 # Tüm değerleri process.env'den okur
+│   ├── helpers/
+│   │   └── logger.js                 # Yapılandırılmış konsol kaydedicisi
+│   ├── services/
+│   │   └── UserService.js            # GoREST /users CRUD servis katmanı
+│   └── specs/
+│       └── gorest.spec.js            # API test dosyası (6 test)
 │
-├── helpers/
-│   ├── highlight.js              # Sarı element vurgulayıcı
-│   ├── logger.js                 # Yapılandırılmış konsol kaydedicisi
-│   └── priceUtils.js             # Türk fiyat dizgisi ayrıştırıcı ve karşılaştırıcı
-│
-├── pages/
-│   ├── base/
-│   │   └── BasePage.js           # Tüm sayfa nesneleri için soyut taban sınıf
-│   ├── HomePage.js               # Grimelange ana sayfası (navigasyon, popup)
-│   ├── ProductListPage.js        # Ürün listeleme sayfası (sıralama, filtreleme, seçim)
-│   └── ProductDetailPage.js      # Ürün detay sayfası (renk, beden, sepet)
-│
-├── services/
-│   └── UserService.js            # GoREST /users CRUD servis katmanı
-│
-├── tests/
-│   ├── ui/
-│   │   └── grimelange.spec.js    # UI test dosyası (16 adım)
-│   └── api/
-│       └── gorest.spec.js        # API test dosyası (6 test)
-│
-└── docs/
-    ├── TECHNICAL_DOCUMENT_EN.md  # İngilizce teknik belge
-    └── TECHNICAL_DOCUMENT_TR.md  # Bu belge
+└── ui-tests/                         # ── Tamamen bağımsız UI projesi ──
+    ├── .env                          # UI_BASE_URL, TIMEOUT_*
+    ├── package.json
+    ├── package-lock.json
+    ├── playwright.config.js
+    ├── config/
+    │   └── config.js                 # Tüm değerleri process.env'den okur
+    ├── constants/
+    │   └── urls.js                   # Yapılandırmadan türetilen sayfa URL'leri
+    ├── helpers/
+    │   ├── highlight.js              # Sarı element vurgulayıcı
+    │   ├── logger.js                 # Yapılandırılmış konsol kaydedicisi
+    │   └── priceUtils.js             # Türk fiyat ayrıştırıcı ve karşılaştırıcı
+    ├── pages/
+    │   ├── base/
+    │   │   └── BasePage.js           # Tüm sayfa nesneleri için soyut taban sınıf
+    │   ├── home/
+    │   │   ├── HomePage.js           # Grimelange ana sayfası (nav, popup)
+    │   │   └── HomePageLocators.js   # HomePage için tüm seçiciler
+    │   ├── productList/
+    │   │   ├── ProductListPage.js    # Listeleme sayfası (sıralama, filtreleme, seçim)
+    │   │   └── ProductListPageLocators.js
+    │   └── productDetail/
+    │       ├── ProductDetailPage.js  # Detay sayfası (renk, beden, sepet)
+    │       └── ProductDetailPageLocators.js
+    └── specs/
+        └── grimelange.spec.js        # UI test dosyası (14 adım)
 ```
 
 ---
@@ -147,43 +160,134 @@ Test Dosyası  →  Sayfa Nesnesi  →  BasePage Araçları  →  Playwright API
 
 **`config.js`**
 
-Tüm çalışma zamanı yapılandırma değerleri için tek kaynak. Bir kez yüklenir; her yerden `require` ile erişilir.
+Her iki projede de mevcuttur (`api-tests/` ve `ui-tests/`). Yerel `.env` dosyasını yüklemek için `require('dotenv').config()` çağrır, ardından dondurulmuş bir `Config` nesnesi sunar. Hiçbir değer sabit kodlanmaz.
 
+**`ui-tests/config/config.js`:**
 ```js
 const Config = Object.freeze({
-  ui:       { baseUrl: 'https://www.grimelange.com.tr' },
-  api:      { baseUrl: 'https://gorest.co.in/public/v2', token: process.env.GOREST_TOKEN },
-  timeouts: { short: 5_000, medium: 15_000, long: 30_000, highlight: 400 },
+  ui:       { baseUrl: process.env.UI_BASE_URL },
+  timeouts: {
+    short:     Number(process.env.TIMEOUT_SHORT),
+    medium:    Number(process.env.TIMEOUT_MEDIUM),
+    long:      Number(process.env.TIMEOUT_LONG),
+    highlight: Number(process.env.TIMEOUT_HIGHLIGHT),
+  },
 });
 ```
 
-**Kural:** Sayfa nesnesinde veya test dosyasında hiçbir zaman bir URL ya da zaman aşımı değeri doğrudan yazılmaz. Her zaman `Config`'den okunur.
+**`api-tests/config/config.js`:**
+```js
+const Config = Object.freeze({
+  api: {
+    baseUrl: process.env.API_BASE_URL,
+    token:   process.env.GOREST_TOKEN,
+  },
+});
+```
+
+**Kural:** Sayfa nesnesinde veya test dosyasında hiçbir zaman bir URL, zaman aşımı değeri veya token doğrudan yazılmaz. Her zaman `Config`'den okunur.
 
 ---
 
-### 5.2 `constants/`
-
-**`locators.js`**
-
-Projede kullanılan her CSS seçiciyi, sayfa/bileşene göre gruplanmış şekilde tutan dondurulmuş, iç içe bir nesnedir. Hedef web sitesi DOM yapısını değiştirdiğinde yalnızca bu dosyanın güncellenmesi yeterlidir.
-
-Her seçici grubu, `, ` ile birleştirilmiş **yedek dizi dizgilerinden** oluşur; böylece Playwright sayfada mevcut olan varyantı eşleştirir:
-
-```js
-SORT_BUTTON: [
-  'button:has-text("Sıralama")',
-  'a:has-text("Sıralama")',
-  'span:has-text("Sıralama")',
-].join(', '),
-```
+### 5.2 `constants/` *(yalnızca ui-tests)*
 
 **`urls.js`**
 
 `Config.ui.baseUrl`'den türetilen URL sabitleri. Sayfa nesnelerindeki sabit kodlanmış dizgileri önler.
 
+```js
+const URLs = Object.freeze({
+  HOME:           Config.ui.baseUrl,
+  ERKEK_GIYIM:   `${Config.ui.baseUrl}/erkek-giyim`,
+  ERKEK_PANTOLON:`${Config.ui.baseUrl}/erkek-pantolon`,
+});
+```
+
 ---
 
 ### 5.3 `helpers/`
+
+**`highlight.js`** *(yalnızca ui-tests)*
+
+Bir etkileşimden önce herhangi bir Playwright `Locator`'a sarı çerçeve ve yarı saydam arka plan uygular. Yıkıcı değildir — hatalar sessizce yutulur, böylece eksik bir element vurgulama nedeniyle testi asla başarısız kılmaz.
+
+```
+outline: 3px solid yellow
+background: rgba(255, 255, 0, 0.35)
+```
+
+**`logger.js`** *(her iki proje)*
+
+Zaman damgalı, seviyelendirilmiş konsol çıktısı sağlayan dondurulmuş bir singleton nesnesi:
+
+| Metod | Önek | Kullanım Amacı |
+|-------|------|----------------|
+| `Logger.step(n, msg)` | `[STEP N]` | Numaralı test adımını işaretler |
+| `Logger.info(msg)` | `[INFO ]` | Genel izleme çıktısı |
+| `Logger.warn(msg)` | `[WARN ]` | Kritik olmayan sorunlar (.örn. renk seçeneği yok) |
+| `Logger.error(msg)` | `[ERROR]` | Hata durumları |
+
+**`priceUtils.js`** *(yalnızca ui-tests)*
+
+Türk yerel ayı sayı biçimlendirmesini işler:
+
+| Fonksiyon | İmza | Açıklama |
+|-----------|------|----------|
+| `parsePrice` | `(str) → number` | `₺` kaldırır, `.`→binler ve `,`→ondalik dönüşümü yapar |
+| `pricesMatch` | `(actual, expected, %) → boolean` | Tolerans tabanlı fiyat karşılaştırması (varsayılan %1 + 1₺ tampon) |
+
+---
+
+### 5.4 `pages/` *(yalnızca ui-tests)*
+
+Her sayfa bir **ikili**dir: aynı alt klasörde bir sınıf dosyası ve birlikte konumlandırılmış bir seçici dosyası. Bu, seçicileri kullanan mantığın fiziksel olarak yanında tutar.
+
+```
+pages/
+├── home/
+│   ├── HomePage.js            ← davranış
+│   └── HomePageLocators.js    ← seçiciler
+├── productList/
+│   ├── ProductListPage.js
+│   └── ProductListPageLocators.js
+└── productDetail/
+    ├── ProductDetailPage.js
+    └── ProductDetailPageLocators.js
+```
+
+**`*Locators.js` dosyaları**
+
+Her locator dosyası, sayfasına ait tüm CSS seçicileri elemente göre gruplanmış şekilde tutan dondurulmuş bir nesnedir. Her seçici, `, ` ile birleştirilmiş **yedek dizi dizgilerinden** oluşur; böylece Playwright sayfada mevcut olan varyantı eşleştirir:
+
+```js
+PRODUCT_CARDS: [
+  '.productItem.eachNot',
+  '.productItem:not(.productItemVariantDetail)',
+  '.productItem',
+  '.listing-product',
+].join(', '),
+```
+
+Hedef web sitesi DOM yapısını değiştirdiğinde yalnızca ilgili `*Locators.js` dosyasının güncellenmesi yeterlidir.
+
+---
+
+**`BasePage.js`** — Soyut taban sınıf
+
+Pay laşılan tüm taıyıcı etkileşim araçlarını sağlar. Tüm somut sayfa nesneleri bu sınıfı miras alır.
+
+| Metod | Açıklama |
+|-------|----------|
+| `goto(url)` | URL'ye git, DOMContentLoaded bekle |
+| `waitForDOMLoad()` | DOMContentLoaded bekle |
+| `waitForNetworkIdle()` | Yükleme durumunu bekle |
+| `waitForVisible(selector, timeout)` | Seçicinin görünür olmasını bekle |
+| `getLocator(selector)` | `.first()` locator döndürür |
+| `getLocatorAll(selector)` | Eşleşen tüm locator'ları döndürür |
+| `highlightAndClick(locator)` | Sarı vurgula → tıkla |
+| `highlightAndHover(locator)` | Sarı vurgula → üzerine gel |
+| `scrollIntoView(locator)` | Elementi görünür alana kaydır |
+| `isVisible(locator)` | Güvenli görünürlük kontrolü (asla hata fırlatmaz) |
 
 **`highlight.js`**
 
@@ -288,7 +392,7 @@ Paylaşılan tüm tarayıcı etkileşim araçlarını sağlar. Tüm somut sayfa 
 
 ---
 
-### 5.5 `services/`
+### 5.5 `services/` *(yalnızca api-tests)*
 
 **`UserService.js`**
 
@@ -306,16 +410,16 @@ Tüm metodlar ham `APIResponse` döndürür — doğrulamalar test dosyasında k
 
 ---
 
-### 5.6 `tests/`
+### 5.6 `specs/`
 
 Test dosyaları **yalnızca** test mantığını barındırır: adım sıralaması, veri hazırlığı ve doğrulamalar. Seçici, URL veya HTTP başlıkları içermezler.
 
-**`tests/ui/grimelange.spec.js`** — 1 test, 16 adım  
-**`tests/api/gorest.spec.js`** — `process.env` üzerinden durum paylaşan 6 sıralı test
+**`api-tests/specs/gorest.spec.js`** — `process.env` üzerinden durum paylaşan 6 sıralı test  
+**`ui-tests/specs/grimelange.spec.js`** — 14 adlandırılmış `test.step()` bloğu olan 1 test
 
 #### `test.step()` ile adım izolasyonu
 
-Her UI adımı, adlandırılmış bir `test.step()` bloğuna sarılmıştır. Bu, HTML raporunda her adım için ayrı bir giriş oluşturur; tüm günlüğü okumadan tam olarak hangi adımın başarısız olduğunu kolayca tespit etmeyi sağlar.
+Her UI adımı, adlandırılmış bir `test.step()` bloğuna sarılmıştır. Bu, HTML raporunda her adım için ayrı bir giriş oluşturur.
 
 ```js
 await test.step('3 - ERKEK menüsü → Pantolon', async () => {
@@ -330,34 +434,49 @@ await test.step('3 - ERKEK menüsü → Pantolon', async () => {
 | **Hard** (engelleyici) | `expect(...)` | Mevcut testi hemen durdurur |
 | **Soft** (engelleyici değil) | `expect.soft(...)` | Başarısızlığı kaydeder ve bir sonraki adımla devam eder |
 
-**Soft** doğrulama kullanan adımlar (bilgilendirici doğrulamalar — çalışma devam eder):
+**Soft** doğrulama kullanan adımlar (bilgilendirici — çalışma devam eder):
 - Adım 4: Navigasyon sonrası URL / başlık kontrolü
 - Adım 6: Sıralama etiketi doğrulaması
-- Adım 8: Filtre sayfası doğrulaması
-- Adım 13: Popup fiyatı ile ürün fiyatı karşılaştırması
-- Adım 15: Toplam fiyat artış kontrolü
+- Adım 11: Popup fiyatı ile ürün fiyatı karşılaştırması
+- Adım 13: Toplam fiyat artış kontrolü
 
-**Hard** doğrulama kullanan adımlar (engelleyici — başarısızlıkta çalışma durur):
-- Adım 14: Miktar artışı (adım 15 için ön koşul)
-- Adım 16: Boş sepet onayı (son durum doğrulaması)
+**Hard** doğrulama kullanan adımlar (engelleyici):
+- Adım 12: Miktar artışı (adım 13 için ön koşul)
+- Adım 14: Boş sepet onayı (son durum doğrulaması)
 
 ---
 
 ## 6. Yapılandırma
 
-**`playwright.config.js`**
+Her alt projenin kendi `playwright.config.js` ve `.env` dosyası vardır.
+
+**`api-tests/playwright.config.js`**
 
 | Seçenek | Değer | Gerekçe |
-|---------|-------|---------|
+|---------|-------|--------|
+| `testDir` | `'./specs'` | Testler proje klasörü içindedir |
+| `retries` | `1` | Geçici ağ sorunlarını tolere eder |
+| `workers` | `1` | Sıralı çalıştırma (testler process.env durumunu paylaşır) |
+| `outputDir` | `'./test-results/'` | Projeye özel |
+| HTML raporu | `'./playwright-report'` | Projeye özel |
+
+**`ui-tests/playwright.config.js`**
+
+| Seçenek | Değer | Gerekçe |
+|---------|-------|--------|
 | `headless` | `false` | Testler gösterim için görünür biçimde çalışır |
 | `video` | `'on'` | Her test için tam video kaydedilir |
 | `screenshot` | `'on'` | Her eylemde ekran görüntüsü alınır |
-| `trace` | `'on'` | Hata ayıklama için tam Playwright izi || `retries` | `1` | Başarısız testler başarısız olarak işaretlenmeden önce otomatik olarak bir kez yeniden çalıştırılır; geçici zamanlama/ağ sorunlarını tolere eder || `workers` | `1` | Sıralı çalıştırma (testler process.env durumunu paylaşır) |
-| `locale` | `'tr-TR'` | Doğru tarih/sayı biçimlendirmesi için Türk yerel ayarı |
+| `trace` | `'on'` | Hata ayıklama için tam Playwright izi |
+| `retries` | `1` | Geçici zamanlama/ağ sorunlarını tolere eder |
+| `workers` | `1` | Sıralı çalıştırma |
+| `locale` | `'tr-TR'` | Doğru sayı biçimlendirmesi için Türk yerel ayı |
 | `viewport` | `1440×900` | Masaüstü çözünürlüğü |
 | `timeout` | `90 000 ms` | Test başına zaman aşımı |
 | `actionTimeout` | `20 000 ms` | Eylem başına zaman aşımı |
 | `navigationTimeout` | `30 000 ms` | Navigasyon başına zaman aşımı |
+| `outputDir` | `'./test-results/'` | Projeye özel |
+| HTML raporu | `'./playwright-report'` | Projeye özel |
 
 ---
 
@@ -365,32 +484,31 @@ await test.step('3 - ERKEK menüsü → Pantolon', async () => {
 
 ### 7.1 UI — Grimelange
 
-**Dosya:** `tests/ui/grimelange.spec.js`
+**Dosya:** `ui-tests/specs/grimelange.spec.js`
 
 | Adım | Eylem | Doğrulama | Tür |
 |------|-------|-----------|-----|
 | 1 | `grimelange.com.tr`'ye git | — | — |
 | 2 | Çerez popup'ını kapat | — | — |
-| 3 | Erkek Pantolon'a git (hover → tıkla → doğrudan URL) | — | — |
+| 3 | Erkek Pantolon'a git (nav tıkla → doğrudan URL yedeği) | — | — |
 | 4 | — | URL / başlık "pantolon" içerir | Soft |
 | 5 | Sıralama seç: "Fiyata göre(artan)" | — | — |
 | 6 | — | Sıralama etiketi "artan" içerir | Soft |
-| 7 | Filtreleme tıkla → "Kargo" seç | — | — |
-| 8 | — | URL veya başlık "kargo" içerir | Soft |
-| 9 | Rastgele bir ürün kartına tıkla | — | — |
-| 10 | Rastgele renk çipi seç | — | — |
-| 11 | Rastgele kullanılabilir beden seç | — | — |
-| 12 | "Sepete Ekle"ye tıkla | Sepet popup'ı görünür | Hard |
-| 13 | — | Popup fiyatı ≈ ürün sayfası fiyatı (±%1) | Soft |
-| 14 | Miktarı artırmak için "+"ya tıkla | Miktar değeri 1 artar | Hard |
-| 15 | — | Toplam fiyat tek ürün fiyatından yüksektir | Soft |
-| 16 | Kaldır butonuna tıkla | Sepet boş durumu gösterir | Hard |
+| 7 | Rastgele bir ürün kartına tıkla | — | — |
+| 8 | Rastgele renk çipi seç | — | — |
+| 9 | Rastgele kullanılabilir beden seç | — | — |
+| — | Ürün fiyatını detay sayfasından oku | — | — |
+| 10 | "Sepete Ekle"ye tıkla | Sepet popup'ı görünür | Hard |
+| 11 | — | Popup fiyatı ≈ ürün sayfası fiyatı (±%1) | Soft |
+| 12 | Miktarı artırmak için "+"ya tıkla | Miktar değeri 1 artar | Hard |
+| 13 | — | Toplam fiyat miktar artışından önce olandan yüksektir | Soft |
+| 14 | Kaldır butonuna tıkla | Sepet boş durumu gösterir | Hard |
 
 ---
 
 ### 7.2 API — GoREST
 
-**Dosya:** `tests/api/gorest.spec.js`  
+**Dosya:** `api-tests/specs/gorest.spec.js`  
 **Temel URL:** `https://gorest.co.in/public/v2`
 
 | Test | Metod | Endpoint | Doğrulama |
@@ -406,42 +524,42 @@ await test.step('3 - ERKEK menüsü → Pantolon', async () => {
 
 ## 8. Testleri Çalıştırma
 
+Her proje kendi klasöründen bağımsız olarak çalıştırılır:
+
 ```bash
-# Bağımlılıkları yükle (yalnızca ilk kez)
+# ── API Testleri ──
+cd api-tests
 npm install
-npx playwright install chromium
+npx playwright install   # yalnızca ilk kez
+npm test                 # tüm API testlerini çalıştır
+npm run report           # HTML raporunu aç
 
-# Tüm testleri çalıştır
-npm test
-
-# Yalnızca UI testlerini çalıştır
-npm run test:ui
-
-# Yalnızca API testlerini çalıştır
-npm run test:api
-
-# Görünür tarayıcıyla çalıştır (headed)
-npm run test:headed
-
-# Çalıştırma sonrası HTML raporunu aç
-npm run report
+# ── UI Testleri ──
+cd ui-tests
+npm install
+npx playwright install chromium   # yalnızca ilk kez
+npm test                          # UI testini çalıştır
+npm run test:headed               # görünür taıyıcıyla çalıştır
+npm run report                    # HTML raporunu aç
 ```
 
 ---
 
 ## 9. Raporlar ve Artifactlar
 
-Tüm artifactlar otomatik olarak `test-results/` dizinine yazılır.
+Artifactlar her projenin kendi klasörüne yazılır:
 
 | Artifact | Konum | Açıklama |
 |----------|-------|----------|
-| HTML Raporu | `playwright-report/index.html` | Etkileşimli test raporu |
-| Video | `test-results/**/*.webm` | Test başına tam ekran kaydı |
-| Ekran Görüntüsü | `test-results/**/*.png` | Eylem başına ekran görüntüleri |
-| İz (Trace) | `test-results/**/*.zip` | Playwright trace viewer arşivi |
+| HTML Raporu (API) | `api-tests/playwright-report/index.html` | Etkileşimli API test raporu |
+| HTML Raporu (UI) | `ui-tests/playwright-report/index.html` | Etkileşimli UI test raporu |
+| Video | `ui-tests/test-results/**/*.webm` | Test başına tam ekran kaydı |
+| Ekran Görüntüsü | `ui-tests/test-results/**/*.png` | Eylem başına ekran görüntüleri |
+| İz (Trace) | `ui-tests/test-results/**/*.zip` | Playwright trace viewer arşivi |
 
 İzi şununla aç:
 ```bash
+cd ui-tests
 npx playwright show-trace test-results/<test-klasörü>/trace.zip
 ```
 
@@ -449,41 +567,54 @@ npx playwright show-trace test-results/<test-klasörü>/trace.zip
 
 ## 10. Ortam Kurulumu
 
-Proje kök dizininde bir `.env` dosyası oluştur:
+Her alt projenin çalıştırılmadan önce oluşturulması gereken kendi `.env` dosyası vardır:
 
+**`api-tests/.env`**
 ```
 # GoREST API Bearer token'ı
 # Token almak için: https://gorest.co.in/my-account/access-tokens
 GOREST_TOKEN=senin_token_buraya
+API_BASE_URL=https://gorest.co.in/public/v2
 ```
 
-> **Güvenlik notu:** `.env` dosyasını asla versiyon kontrolüne ekleme. `.gitignore` dosyasına ekle.
+**`ui-tests/.env`**
+```
+UI_BASE_URL=https://www.grimelange.com.tr
+TIMEOUT_SHORT=5000
+TIMEOUT_MEDIUM=15000
+TIMEOUT_LONG=30000
+TIMEOUT_HIGHLIGHT=400
+```
+
+> **Güvenlik notu:** `.env` dosyalarını asla versiyon kontrolüne ekleme. `.gitignore` dosyasında listelenmektedirler.
 
 ---
 
 ## 11. Bağımlılık Grafiği
 
 ```
-playwright.config.js
-│
-├── tests/ui/grimelange.spec.js
-│   ├── pages/HomePage.js
-│   │   ├── pages/base/BasePage.js
-│   │   │   ├── helpers/highlight.js  ←── config/config.js
-│   │   │   ├── helpers/logger.js
-│   │   │   └── config/config.js
-│   │   └── constants/locators.js
-│   │       constants/urls.js  ←── config/config.js
-│   ├── pages/ProductListPage.js     (aynı taban zinciri)
-│   ├── pages/ProductDetailPage.js   (aynı taban zinciri)
-│   ├── helpers/priceUtils.js
-│   └── helpers/logger.js
-│
-└── tests/api/gorest.spec.js
-    ├── services/UserService.js
-    │   ├── config/config.js
-    │   └── helpers/logger.js
-    └── helpers/logger.js
+api-tests/
+└── playwright.config.js
+    └── specs/gorest.spec.js
+        ├── services/UserService.js
+        │   ├── config/config.js  ←── .env (GOREST_TOKEN, API_BASE_URL)
+        │   └── helpers/logger.js
+        └── helpers/logger.js
+
+ui-tests/
+└── playwright.config.js
+    └── specs/grimelange.spec.js
+        ├── pages/home/HomePage.js
+        │   ├── pages/base/BasePage.js
+        │   │   ├── helpers/highlight.js
+        │   │   ├── helpers/logger.js
+        │   │   └── config/config.js  ←── .env (UI_BASE_URL, TIMEOUT_*)
+        │   ├── pages/home/HomePageLocators.js
+        │   └── constants/urls.js  ←── config/config.js
+        ├── pages/productList/ProductListPage.js     (aynı taban zinciri)
+        ├── pages/productDetail/ProductDetailPage.js (aynı taban zinciri)
+        ├── helpers/priceUtils.js
+        └── helpers/logger.js
 ```
 
-Her yaprak düğüm nihayetinde tek kaynak olarak `config/config.js`'e bağımlıdır.
+Tüm değerler nihayetinde projenin `.env` dosyasından `config/config.js` aracılığıyla kaynaklanır.
