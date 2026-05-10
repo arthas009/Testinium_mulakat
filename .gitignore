@@ -13,6 +13,9 @@ node_modules/
 **/.playwright/
 **/playwright/.cache/
 
+# ── Local-only docs ──────────────────────────────────────────────────────────
+docs/interview-qa.docx
+
 # ── OS files ─────────────────────────────────────────────────────────────────
 .DS_Store
 Thumbs.db
